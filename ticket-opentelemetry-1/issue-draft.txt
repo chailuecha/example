@@ -61,30 +61,25 @@ try {
 
 ### Expected behavior
 
-I expected the baggage entries exposed in the event's MDC to be included by
-`capture-mdc-attributes=*`, alongside explicit application MDC entries:
+The OpenTelemetry console-exporter record should include `baggage.sessionId`:
 
 ```text
-requestId=request-456
-baggage.sessionId=session-123
+INFO 'handling-request' ... {baggage.sessionId="session-123", requestId="request-456"}
 ```
-
-If this combination is intentionally unsupported, clarification of the supported
-way to export the baggage entries would also be helpful.
 
 ### Actual behavior
 
-```text
-HTTP response: sessionId=session-123
-Logback console: LOGBACK handling-request MDC=..., baggage.sessionId=session-123, requestId=request-456
-Exported OTLP attributes: {requestId=request-456}
-```
-
-The final test assertion reports:
+The OpenTelemetry console-exporter record does not include `baggage.sessionId`:
 
 ```text
-expected: <session-123> but was: <null>
+INFO 'handling-request' ... {requestId="request-456"}
 ```
+
+Both snippets show the exported log record printed to the terminal, abbreviated
+by omitting timestamps, trace IDs, and instrumentation scope. The separate raw
+Logback `LOGBACK ... MDC=...` line does contain baggage; the missing attribute is
+in the OpenTelemetry-exported record. The automated OTLP test confirms the same
+missing attribute in the actual exported payload.
 
 ### Javaagent or library instrumentation version
 
