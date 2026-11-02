@@ -1,6 +1,5 @@
 <configuration>
-    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder><pattern>LOGBACK %msg MDC=%X%n</pattern></encoder>
-    </appender>
-    <root level="INFO"><appender-ref ref="STDOUT"/></root>
+    <!-- The agent exports logs; discard Logback's own output to avoid duplicate lines. -->
+    <appender name="DISCARD" class="ch.qos.logback.core.helpers.NOPAppender"/>
+    <root level="INFO"><appender-ref ref="DISCARD"/></root>
 </configuration>

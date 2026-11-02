@@ -6,7 +6,7 @@ Docker, or application-side baggage copying are required.
 
 ## Requirements
 
-- JDK 17 available to Gradle's toolchain discovery.
+- JDK 21 available to Gradle's toolchain discovery.
 - Network access to Maven Central and the Gradle distribution on first run.
 
 ## Automated reproduction
@@ -25,15 +25,14 @@ On an affected agent the test is **expected to fail** at the final assertion:
 expected: <session-123> but was: <null>
 ```
 
-Before that assertion, the test verifies that HTTP extraction succeeded,
-Logback console MDC includes `baggage.sessionId=session-123`, and explicit
-`MDC.put("requestId", "request-456")` is captured in OTLP attributes.
+Before that assertion, the test verifies that HTTP extraction succeeded and
+explicit `MDC.put("requestId", "request-456")` is captured in OTLP attributes.
 The failure is therefore the missing baggage-derived attribute, rather than
 an application startup, context extraction, or exporter connectivity failure.
 
 Evidence is saved under `build/verification/2.31.1/`:
 
-- `evidence.txt`: HTTP response, Logback line, and exported attribute map.
+- `evidence.txt`: HTTP response and exported attribute map.
 - `exported-log.txt`: decoded OTLP log record.
 - `application.log`: complete child-process output.
 
@@ -61,9 +60,23 @@ Terminal 2:
 curl -H 'baggage: sessionId=session-123' http://127.0.0.1:8080/hello
 ```
 
-The response is `sessionId=session-123`. Compare the `LOGBACK handling-request`
-line with the OpenTelemetry console-exporter record: Logback's MDC contains the
-baggage entry but the exported record's attributes do not. Stop with Ctrl+C.
+The HTTP response is `sessionId=session-123`, confirming that the agent extracted
+the header. The server terminal shows only the OpenTelemetry-exported application
+log; Logback's own output is discarded to avoid duplicate, confusing lines.
+
+Expected exported record (abbreviated):
+
+```text
+INFO 'handling-request' ... {baggage.sessionId="session-123", requestId="request-456"}
+```
+
+Actual exported record on the affected agent:
+
+```text
+INFO 'handling-request' ... {requestId="request-456"}
+```
+
+The exported record is missing `baggage.sessionId`. Stop the server with Ctrl+C.
 
 Both reproduction paths enable these settings:
 

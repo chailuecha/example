@@ -1,10 +1,10 @@
-Title: Logback baggage MDC entries are missing from exported log attributes
+Title: HTTP baggage is missing from exported Logback log attributes
 
 ### Describe the bug
 
 With the unmodified OpenTelemetry Java agent, baggage extracted from an incoming
-HTTP request appears in the Logback event's MDC and console output, but is absent
-from the exported OpenTelemetry log attributes. Explicit application MDC entries
+HTTP request is available through `Baggage.current()` in the request handler,
+but is absent from the exported OpenTelemetry log attributes. Explicit application MDC entries
 are exported successfully in the same log event.
 
 The reproduction enables both:
@@ -20,15 +20,14 @@ baggage scope management, or application-side copying of baggage into MDC.
 ### Steps to reproduce
 
 1. Extract the attached `ticket-opentelemetry-1.zip`.
-2. Use JDK 17 and run `./gradlew test --console=plain` from its project directory.
+2. Use JDK 21 and run `./gradlew test --console=plain` from its project directory.
 3. The test starts a JDK HTTP server with the stock upstream agent, sends an HTTP
    request with `baggage: sessionId=session-123`, receives OTLP HTTP/protobuf logs
    on a local test receiver, and decodes the actual exported record.
 4. The final assertion fails because `baggage.sessionId` is absent.
 
 The test first checks that the HTTP response reads the correct `Baggage.current()`
-value, console MDC contains the baggage entry, and the explicit `requestId` MDC
-field is exported. This distinguishes the failure from extraction, startup,
+value and that the explicit `requestId` MDC field is exported. This distinguishes the failure from extraction, startup,
 or exporter connectivity problems.
 
 For manual reproduction:
@@ -39,9 +38,10 @@ For manual reproduction:
 curl -H 'baggage: sessionId=session-123' http://127.0.0.1:8080/hello
 ```
 
-The manual command uses the console exporter so the raw Logback line and exported
-OpenTelemetry record can be compared in the same terminal. The automated test
-uses the actual OTLP HTTP/protobuf exporter and does not require a Collector.
+The manual command uses the OpenTelemetry console exporter to display the exported
+log record. Logback's own output is discarded, so each HTTP request produces only
+one application log line in the terminal. The automated test uses the actual
+OTLP HTTP/protobuf exporter and does not require a Collector.
 
 The relevant handler code is:
 
@@ -75,11 +75,10 @@ The OpenTelemetry console-exporter record does not include `baggage.sessionId`:
 INFO 'handling-request' ... {requestId="request-456"}
 ```
 
-Both snippets show the exported log record printed to the terminal, abbreviated
-by omitting timestamps, trace IDs, and instrumentation scope. The separate raw
-Logback `LOGBACK ... MDC=...` line does contain baggage; the missing attribute is
-in the OpenTelemetry-exported record. The automated OTLP test confirms the same
-missing attribute in the actual exported payload.
+Both snippets show the OpenTelemetry-exported log record printed to the terminal,
+abbreviated by omitting timestamps, trace IDs, and instrumentation scope. The
+automated OTLP test confirms the same missing attribute in the actual exported
+payload.
 
 ### Javaagent or library instrumentation version
 
@@ -91,7 +90,7 @@ missing attribute in the actual exported payload.
 
 ### Environment
 
-- Java: Microsoft OpenJDK 17.0.19
+- Java: 21 configured for retesting; the original verified run used Microsoft OpenJDK 17.0.19
 - OS: macOS, Apple Silicon
 - HTTP server: `com.sun.net.httpserver.HttpServer` from the JDK
 
@@ -101,8 +100,8 @@ In the runtime-transformed `ch.qos.logback.classic.Logger.callAppenders` for
 2.31.1, `LoggingEventMapper.emit(...)` runs before the Logback MDC instrumentation
 associates the current context with the logging event. The MDC getter advice
 cannot read baggage from that event context at the earlier export point. This
-appears to explain why the later console appender sees enriched MDC while the
-already-exported log does not.
+appears to explain why the exported record omits baggage even though the active
+HTTP request context contains it.
 
 Enabling `otel.instrumentation.logback-appender.experimental.capture-logger-context-attributes=true`
 did not fix baggage export in a separate 2.31.1 check. That option captures Logback

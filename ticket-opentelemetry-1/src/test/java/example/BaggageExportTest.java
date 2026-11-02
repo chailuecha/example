@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class BaggageExportTest {
     @Test
-    void baggageVisibleInLogbackMdcShouldAlsoBeCapturedInOtlpAttributes() throws Exception {
+    void httpBaggageShouldBeIncludedInExportedLogAttributes() throws Exception {
         Path output = Path.of(System.getProperty("reproducer.outputDir"));
         Files.createDirectories(output);
         Path applicationOutput = output.resolve("application.log");
@@ -77,10 +77,6 @@ class BaggageExportTest {
             application.destroy();
             assertTrue(application.waitFor(15, TimeUnit.SECONDS), "Application did not stop");
             assertTrue(receiverErrors.isEmpty(), () -> "Receiver errors: " + receiverErrors);
-            String console = Files.readString(applicationOutput);
-            String logbackLine = console.lines().filter(line -> line.startsWith("LOGBACK handling-request"))
-                    .findFirst().orElseThrow(() -> new AssertionError("Missing Logback output: " + console));
-            assertTrue(logbackLine.contains("baggage.sessionId=session-123"), logbackLine);
             List<LogRecord> requestLogs = records.stream()
                     .filter(record -> record.getBody().getStringValue().equals("handling-request"))
                     .collect(Collectors.toList());
@@ -90,14 +86,14 @@ class BaggageExportTest {
                             attribute -> attribute.getValue().getStringValue()));
             assertEquals("request-456", attributes.get("requestId"), "Explicit MDC capture must work first");
             String evidence = "HTTP response: " + response.body()
-                    + "Console: " + logbackLine + "\nOTLP attributes: " + attributes + "\n";
+                    + "OTLP attributes: " + attributes + "\n";
             Files.writeString(output.resolve("evidence.txt"), evidence);
             Files.writeString(output.resolve("exported-log.txt"), requestLogs.get(0).toString());
             System.out.println(evidence);
 
             // This is the expected behavior assertion. It fails on affected upstream agents.
             assertEquals("session-123", attributes.get("baggage.sessionId"),
-                    "Baggage is current and visible in Logback MDC, but absent from OTLP attributes");
+                    "Baggage is current in the HTTP handler, but absent from OTLP attributes");
         } finally {
             if (application != null && application.isAlive()) {
                 application.destroyForcibly();

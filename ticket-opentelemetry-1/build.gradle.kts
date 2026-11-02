@@ -7,7 +7,7 @@ repositories {
 }
 
 java {
-    toolchain.languageVersion.set(JavaLanguageVersion.of(17))
+    toolchain.languageVersion.set(JavaLanguageVersion.of(21))
 }
 
 val agentVersion = providers.gradleProperty("otelAgentVersion").getOrElse("2.31.1")
@@ -49,7 +49,7 @@ tasks.test {
     useJUnitPlatform()
     inputs.files(javaagent)
     val launcher = javaToolchains.launcherFor {
-        languageVersion.set(JavaLanguageVersion.of(17))
+        languageVersion.set(JavaLanguageVersion.of(21))
     }
     doFirst {
         systemProperty("reproducer.java", launcher.get().executablePath.asFile.absolutePath)
